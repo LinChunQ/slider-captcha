@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slider Analysis — 滑块识别可视化</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.25rem;
+            background: linear-gradient(to right, #1e293b, #2563eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            background: #e2e8f0;
+            padding: 4px;
+            border-radius: 100px;
+            width: fit-content;
+            margin: 0 auto 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 24px;
+            border: none;
+            background: transparent;
+            border-radius: 100px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: 0.3s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 1. 确保左右布局容器等高 */
+        .demo-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 32px;
+            align-items: stretch; /* 关键：强制子元素高度对齐 */
+        }
+
+        /* 2. 案例列表：固定高度 + 内部滚动 */
+        .thumb-list {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+
+            /* 设置与右侧卡片大致相同的高度 */
+            height: 600px;
+            overflow-y: auto; /* 开启垂直滚动 */
+
+            /* 美化滚动条 (可选) */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        /* 自定义滚动条样式 (Chrome/Safari) */
+        .thumb-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .thumb-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        /* 3. 右侧卡片：也要固定高度以保持对齐 */
+        .main-stage .card:first-child {
+            height: 600px; /* 与左侧 thumb-list 保持一致 */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 预览框自动填充剩余空间 */
+        .preview-box {
+            flex-grow: 1; /* 自动撑满卡片中间区域 */
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .thumb-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .thumb-item:hover {
+            background: #f1f5f9;
+        }
+
+        .thumb-item.selected {
+            background: #eff6ff;
+            border-color: var(--primary);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 12px;
+        }
+
+        .preview-box {
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .preview-box img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .run-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: 20px;
+        }
+
+        .run-btn:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .run-btn:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        /* 统一图片容器高度，防止被长图撑开 */
+        .img-container {
+            width: 100%;
+            height: 200px; /* 设定一个固定高度 */
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* 超出部分隐藏 */
+        }
+
+        .img-container img {
+            max-width: 100%;
+            max-height: 100%;
+            /* 关键：保持比例，如果图片太长则缩放显示，不撑开容器 */
+            object-fit: contain;
+            border-radius: 4px;
+            display: block;
+        }
+
+        .info-box {
+            padding: 8px;
+        }
+
+        .step-tag {
+            font-size: 0.7rem;
+            color: var(--primary);
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        /* 按钮内的微型加载圈 */
+        .spinner-inline {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        /* 1. 结果容器必须是自适应的 */
+        #demoResult {
+            height: auto !important; /* 移除任何可能继承的高度 */
+            margin-top: 24px;
+            display: none; /* 初始隐藏 */
+        }
+
+        /* 2. 针对结果区域内的卡片，强制重置高度 */
+        #demoResult .card {
+            height: auto !important; /* 关键：覆盖之前设定的 600px */
+            min-height: 400px; /* 设置一个最小高度保证美观 */
+        }
+
+        /* 3. 确保过程网格不会溢出 */
+        .process-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            align-items: start; /* 允许每行卡片根据自身内容伸缩 */
+        }
+
+        /* 4. 步骤卡片内部也要自适应 */
+        .process-card {
+            height: auto !important;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            background: #fff;
+        }
+
+        /* 自定义面板样式 */
+        .mode-btn {
+            padding: 8px 20px;
+            border: 2px solid var(--border);
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            transition: 0.2s;
+        }
+
+        .mode-btn.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #eff6ff;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            min-height: 160px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #f8fafc;
+            padding: 12px;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: #eff6ff;
+        }
+
+        .drop-zone.drag-over {
+            border-color: var(--primary);
+            background: #dbeafe;
+        }
+
+        .drop-zone.invalid {
+            border-color: #f59e0b;
+            background: #fff7ed;
+        }
+
+        .drop-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .b64-input {
+            width: 100%;
+            height: 120px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            resize: vertical;
+            transition: 0.2s;
+            color: var(--text-main);
+        }
+
+        .b64-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .b64-input.invalid {
+            border-color: #f59e0b;
+            background: #fff7ed;
+        }
+
+        .b64-preview {
+            margin-top: 10px;
+            min-height: 160px;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 12px;
+        }
+
+        .b64-preview.invalid {
+            border-color: #f59e0b;
+            background: #fff7ed;
+        }
+
+        .b64-preview img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            display: none;
+        }
+
+        .b64-preview-tip {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        .custom-validation-tip {
+            margin-top: 10px;
+            min-height: 20px;
+            font-size: 0.85rem;
+            color: #b45309;
+            text-align: center;
+        }
+
+        @media (max-width: 700px) {
+            .demo-layout {
+                grid-template-columns: 1fr;
+            }
+            .thumb-list {
+                height: auto !important;
+                max-height: 200px;
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Slider Capture Demo</h1>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('demo')">样例试用</button>
+        <button class="tab-btn" onclick="switchTab('custom')">自定义分析</button>
+    </div>
+
+    <div id="demo-panel" class="demo-layout">
+        <div class="thumb-list" id="thumbList">
+        </div>
+
+        <div class="main-stage">
+            <div class="card">
+                <div class="card-head">
+                    <span style="font-weight:700">实时预览</span>
+                    <span id="case-id" style="font-size:0.8rem; color:var(--text-muted)">未选择</span>
+                </div>
+
+                <div class="preview-box" id="demoPreview">
+                    <span style="color:#94a3b8">请从左侧选择一个案例</span>
+                </div>
+
+                <button class="run-btn" id="runDemoBtn" disabled onclick="runDemo()">
+                    开始分析过程
+                </button>
+            </div>
+
+            <div id="demoResult"></div>
+        </div>
+    </div>
+
+    <!-- 自定义测试面板 -->
+    <div id="custom-panel" style="display:none;">
+        <div class="card" style="max-width:800px; margin:0 auto;">
+            <div class="card-head">
+                <span style="font-weight:700">自定义图片识别</span>
+                <span style="font-size:0.8rem; color:var(--text-muted)">上传滑块小图 + 背景大图</span>
+            </div>
+
+            <!-- 输入模式切换 -->
+            <div style="display:flex; gap:8px; margin:16px 0 20px;">
+                <button class="mode-btn active" id="modeUpload" onclick="switchMode('upload')">上传图片</button>
+                <button class="mode-btn" id="modeBase64" onclick="switchMode('base64')">粘贴 Base64</button>
+            </div>
+
+            <!-- 上传模式 -->
+            <div id="uploadArea">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                    <div>
+                        <label style="font-weight:600; font-size:0.9rem; display:block; margin-bottom:8px;">滑块小图（PNG，含透明通道）</label>
+                        <div class="drop-zone" id="dropSmall" onclick="document.getElementById('fileSmall').click()">
+                            <input type="file" id="fileSmall" accept="image/*" style="display:none" onchange="onFileSelected('small', this)">
+                            <div class="drop-placeholder" id="dropSmallPlaceholder">
+                                <span style="font-size:1.5rem;">📁</span>
+                                <span>点击或拖拽上传</span>
+                            </div>
+                            <img id="previewSmall" style="max-width:100%; max-height:160px; display:none; object-fit:contain;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-weight:600; font-size:0.9rem; display:block; margin-bottom:8px;">背景大图</label>
+                        <div class="drop-zone" id="dropBig" onclick="document.getElementById('fileBig').click()">
+                            <input type="file" id="fileBig" accept="image/*" style="display:none" onchange="onFileSelected('big', this)">
+                            <div class="drop-placeholder" id="dropBigPlaceholder">
+                                <span style="font-size:1.5rem;">📁</span>
+                                <span>点击或拖拽上传</span>
+                            </div>
+                            <img id="previewBig" style="max-width:100%; max-height:160px; display:none; object-fit:contain;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Base64 模式 -->
+            <div id="base64Area" style="display:none;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                    <div>
+                        <label style="font-weight:600; font-size:0.9rem; display:block; margin-bottom:8px;">小图 Base64</label>
+                        <textarea id="b64Small" class="b64-input" placeholder="粘贴滑块小图的 base64 字符串..."></textarea>
+                        <div class="b64-preview" id="b64PreviewSmall">
+                            <span class="b64-preview-tip" id="b64PreviewSmallTip">粘贴 Base64 后会在这里回显预览</span>
+                            <img id="b64PreviewSmallImg" alt="Small Base64 Preview">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-weight:600; font-size:0.9rem; display:block; margin-bottom:8px;">大图 Base64</label>
+                        <textarea id="b64Big" class="b64-input" placeholder="粘贴背景大图的 base64 字符串..."></textarea>
+                        <div class="b64-preview" id="b64PreviewBig">
+                            <span class="b64-preview-tip" id="b64PreviewBigTip">粘贴 Base64 后会在这里回显预览</span>
+                            <img id="b64PreviewBigImg" alt="Big Base64 Preview">
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <button style="font-size:0.8rem; color:var(--primary); background:none; border:none; cursor:pointer; text-decoration:underline;" onclick="loadSampleB64()">载入示例数据体验</button>
+                </div>
+            </div>
+
+            <button class="run-btn" id="runCustomBtn" onclick="runCustom()">
+                开始识别
+            </button>
+            <div id="customValidationTip" class="custom-validation-tip"></div>
+        </div>
+
+        <div id="customResult" style="max-width:800px; margin:0 auto;"></div>
+    </div>
+</div>
+
+<script>
+    let testCases = [];
+    let selectedIndex = -1;
+
+    // 1. 初始化：加载测试列表
+    async function init() {
+        try {
+            // 这里的 URL 请替换为你后端的真实接口
+            const res = await fetch('/api/test-cases');
+            testCases = await res.json();
+            renderThumbs();
+        } catch (e) {
+            document.getElementById('thumbList').innerHTML = `<div style="color:red; padding:10px;">加载失败: ${e.message}</div>`;
+        }
+    }
+
+    // 2. 渲染左侧缩略图列表
+    function renderThumbs() {
+        const list = document.getElementById('thumbList');
+        // 修改 renderThumbs 函数中的这一行
+        list.innerHTML = testCases.map((tc, i) => `
+    <div class="thumb-item" id="thumb-${i}" onclick="selectThumb(${i})">
+      <div style="font-size:0.85rem">
+        <div style="font-weight:600; color:#334155">Case #${i + 1}</div>
+      </div>
+    </div>
+  `).join('');
+    }
+
+    async function selectThumb(index) {
+        selectedIndex = index;
+
+        // 1. UI 高亮切换
+        document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('selected'));
+        document.getElementById(`thumb-${index}`).classList.add('selected');
+
+        // 2. 关键修复：清空并隐藏上一次的分析结果
+        const resultDiv = document.getElementById('demoResult');
+        resultDiv.innerHTML = '';      // 清空 HTML 内容
+        resultDiv.style.display = 'none'; // 隐藏容器
+
+        // 3. 重置按钮状态
+        document.getElementById('runDemoBtn').disabled = false;
+        document.getElementById('case-id').innerText = `Case #${index + 1}`;
+
+        // 4. 加载新的预览大图
+        const previewBox = document.getElementById('demoPreview');
+        previewBox.innerHTML = '<div class="spinner"></div>';
+
+        try {
+            const res = await fetch('/api/demo-preview', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({index: index})
+            });
+            const data = await res.json();
+            if (data.success && data.bigImage) {
+                previewBox.innerHTML = `<img src="${data.bigImage}" style="max-width:100%; display:block;">`;
+            }
+        } catch (e) {
+            previewBox.innerHTML = `<span style="color:red">预览加载失败</span>`;
+        }
+    }
+
+    // 开始分析：调用识别接口
+    async function runDemo() {
+        if (selectedIndex < 0) return;
+
+        const runBtn = document.getElementById('runDemoBtn');
+        const resultDiv = document.getElementById('demoResult');
+
+        // 1. 锁定 UI：禁用按钮，显示加载状态
+        runBtn.disabled = true;
+        runBtn.innerHTML = `识别中 <div class="spinner-inline"></div>`; // 建议在 CSS 中加一个微型 spinner
+
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+        <div class="card" style="border-top: 4px solid #e2e8f0;">
+            <div class="spinner"></div>
+            <div style="text-align:center; color:var(--text-muted); font-size:0.9rem;">
+                OpenCV 正在提取特征并计算偏移量...
+            </div>
+        </div>`;
+
+        try {
+            const res = await fetch('/api/demo-recognize', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({index: selectedIndex})
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                // 2. 渲染结果
+                renderResult(data, 'demoResult');
+
+                // 3. 核心交互修改：平滑滚动到结果区域
+                // 使用 timeout 确保 DOM 已经渲染完成
+                setTimeout(() => {
+                    resultDiv.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start' // 滚动到结果卡片的顶部
+                    });
+                }, 100);
+
+            } else {
+                resultDiv.innerHTML = `<div class="card" style="color:red; border-left:4px solid red;">识别引擎返回错误: ${data.error || '未知错误'}</div>`;
+            }
+        } catch (e) {
+            resultDiv.innerHTML = `<div class="card" style="color:red; border-left:4px solid red;">网络连接失败: 请检查后端服务是否启动</div>`;
+            console.error("Recognition Error:", e);
+        } finally {
+            // 4. 恢复按钮状态
+            runBtn.disabled = false;
+            runBtn.innerHTML = `开始分析过程`;
+        }
+    }
+
+    // 5. 渲染识别报告（结果网格）
+    function renderResult(data, containerId) {
+        const container = document.getElementById(containerId);
+
+        const steps = [
+            {k: 'small_alpha', s: 'Step1', n: 'Alpha 蒙版', d: '基于透明通道提取轮廓'},
+            {k: 'small_edge', s: 'Step2', n: '边缘增强', d: 'Canny + 形态学膨胀'},
+            {k: 'big_edge', s: 'Step3', n: '局部边缘', d: '裁剪带 + 双边滤波'},
+            {k: 'result', s: 'Step4', n: '最终结果', d: 'TM_SQDIFF 坐标匹配'}
+        ];
+
+        container.innerHTML = `
+      <div class="card" style="border-top: 4px solid var(--primary); animation: fadeIn 0.5s ease;">
+        <div class="card-head">
+          <span style="font-weight:700">识别分析报告</span>
+          <span style="font-weight:800; color:var(--primary); font-size:1.1rem">X 偏移: ${data.offset} px</span>
+        </div>
+        <div class="process-grid">
+          ${steps.map(step => `
+            <div class="process-card">
+              <div class="img-container"><img src="${data[step.k]}" alt="${step.n}"></div>
+              <div class="info-box">
+                <span class="step-tag">${step.s} ${step.n}</span>
+                <div style="font-size:0.75rem; color:#94a3b8">${step.d}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    }
+
+    // ========== Tab 切换 ==========
+    function switchTab(type) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        if (type === 'demo') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('demo-panel').style.display = '';
+            document.getElementById('custom-panel').style.display = 'none';
+        } else {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('demo-panel').style.display = 'none';
+            document.getElementById('custom-panel').style.display = '';
+            setupDragDrop();
+        }
+    }
+
+    // ========== 自定义面板：模式切换 ==========
+    function switchMode(mode) {
+        document.getElementById('modeUpload').classList.toggle('active', mode === 'upload');
+        document.getElementById('modeBase64').classList.toggle('active', mode === 'base64');
+        document.getElementById('uploadArea').style.display = mode === 'upload' ? '' : 'none';
+        document.getElementById('base64Area').style.display = mode === 'base64' ? '' : 'none';
+        refreshCustomRunButton();
+    }
+
+    // ========== 文件上传处理 ==========
+    let customSmallB64 = '';
+    let customBigB64 = '';
+    const customInputState = {
+        upload: {small: 'empty', big: 'empty'},
+        base64: {small: 'empty', big: 'empty'}
+    };
+
+    function getUploadElements(type) {
+        const isSmall = type === 'small';
+        return {
+            zone: document.getElementById(isSmall ? 'dropSmall' : 'dropBig'),
+            placeholder: document.getElementById(isSmall ? 'dropSmallPlaceholder' : 'dropBigPlaceholder'),
+            img: document.getElementById(isSmall ? 'previewSmall' : 'previewBig')
+        };
+    }
+
+    function setUploadState(type, status, message = '') {
+        const {zone, placeholder, img} = getUploadElements(type);
+
+        if (!placeholder.dataset.defaultHtml) {
+            placeholder.dataset.defaultHtml = placeholder.innerHTML;
+        }
+
+        customInputState.upload[type] = status;
+        zone.classList.toggle('invalid', status === 'invalid');
+
+        if (status === 'valid') {
+            placeholder.style.display = 'none';
+            img.style.display = '';
+        } else {
+            img.style.display = 'none';
+            img.removeAttribute('src');
+            placeholder.style.display = 'flex';
+            placeholder.innerHTML = status === 'invalid'
+                ? `<span style="font-size:1.2rem;">!</span><span>${message || '图片无效，请重新选择'}</span>`
+                : placeholder.dataset.defaultHtml;
+        }
+
+        refreshCustomRunButton();
+    }
+
+    function setBase64State(type, status) {
+        customInputState.base64[type] = status;
+        refreshCustomRunButton();
+    }
+
+    function getCustomValidationState() {
+        const mode = document.getElementById('modeUpload').classList.contains('active') ? 'upload' : 'base64';
+        const state = customInputState[mode];
+        const labels = {small: '小图', big: '大图'};
+        const invalid = [];
+        const missing = [];
+
+        ['small', 'big'].forEach(type => {
+            if (state[type] === 'valid') return;
+            if (state[type] === 'invalid') {
+                invalid.push(labels[type]);
+            } else {
+                missing.push(labels[type]);
+            }
+        });
+
+        if (!invalid.length && !missing.length) {
+            return {valid: true, message: ''};
+        }
+
+        if (invalid.length) {
+            return {
+                valid: false,
+                message: `${invalid.join('、')}输入有误，请修正后再进行分析`
+            };
+        }
+
+        return {
+            valid: false,
+            message: `请先提供有效的${missing.join('和')}`
+        };
+    }
+
+    function refreshCustomRunButton() {
+        const runBtn = document.getElementById('runCustomBtn');
+        const tip = document.getElementById('customValidationTip');
+        if (!runBtn || !tip) return;
+
+        const validation = getCustomValidationState();
+        runBtn.disabled = !validation.valid;
+        tip.textContent = validation.message;
+    }
+
+    function validateUploadImage(type, dataUrl) {
+        const probe = new Image();
+        probe.onload = () => {
+            const {img} = getUploadElements(type);
+            if (type === 'small') {
+                customSmallB64 = dataUrl;
+            } else {
+                customBigB64 = dataUrl;
+            }
+            img.src = dataUrl;
+            setUploadState(type, 'valid');
+        };
+        probe.onerror = () => {
+            if (type === 'small') {
+                customSmallB64 = '';
+            } else {
+                customBigB64 = '';
+            }
+            setUploadState(type, 'invalid', '图片解析失败，请重新选择');
+        };
+        probe.src = dataUrl;
+    }
+
+    function guessImageMime(base64Body) {
+        if (base64Body.startsWith('iVBORw0KGgo')) return 'image/png';
+        if (base64Body.startsWith('/9j/')) return 'image/jpeg';
+        if (base64Body.startsWith('R0lGOD')) return 'image/gif';
+        if (base64Body.startsWith('UklGR')) return 'image/webp';
+        if (base64Body.startsWith('Qk')) return 'image/bmp';
+        if (base64Body.startsWith('PHN2Zy') || base64Body.startsWith('PD94bWwg')) return 'image/svg+xml';
+        return 'image/png';
+    }
+
+    function normalizeImageBase64(value) {
+        const cleaned = (value || '').trim().replace(/\n/g, '').replace(/\r/g, '');
+        if (!cleaned) return '';
+
+        if (cleaned.startsWith('data:image/')) {
+            return cleaned;
+        }
+
+        if (cleaned.startsWith('data:')) {
+            const commaIndex = cleaned.indexOf(',');
+            if (commaIndex >= 0) {
+                const payload = cleaned.slice(commaIndex + 1);
+                const mime = guessImageMime(payload);
+                return `data:${mime};base64,${payload}`;
+            }
+        }
+
+        const mime = guessImageMime(cleaned);
+        return `data:${mime};base64,${cleaned}`;
+    }
+
+    function updateBase64Preview(type, rawValue) {
+        const isSmall = type === 'small';
+        const box = document.getElementById(isSmall ? 'b64PreviewSmall' : 'b64PreviewBig');
+        const input = document.getElementById(isSmall ? 'b64Small' : 'b64Big');
+        const tip = document.getElementById(isSmall ? 'b64PreviewSmallTip' : 'b64PreviewBigTip');
+        const img = document.getElementById(isSmall ? 'b64PreviewSmallImg' : 'b64PreviewBigImg');
+        const normalized = normalizeImageBase64(rawValue);
+
+        box.classList.remove('invalid');
+        input.classList.remove('invalid');
+        img.style.display = 'none';
+        img.removeAttribute('src');
+
+        if (!normalized) {
+            setBase64State(type, 'empty');
+            tip.textContent = '粘贴 Base64 后会在这里回显预览';
+            tip.style.display = '';
+            return;
+        }
+
+        tip.textContent = '预览加载中...';
+        tip.style.display = '';
+
+        img.onload = () => {
+            box.classList.remove('invalid');
+            input.classList.remove('invalid');
+            setBase64State(type, 'valid');
+            img.style.display = 'block';
+            tip.style.display = 'none';
+        };
+
+        img.onerror = () => {
+            img.style.display = 'none';
+            box.classList.add('invalid');
+            input.classList.add('invalid');
+            setBase64State(type, 'invalid');
+            tip.textContent = 'Base64 无法解析为可预览图片';
+            tip.style.display = '';
+        };
+
+        img.src = normalized;
+    }
+
+    function setupBase64Preview() {
+        [
+            {type: 'small', id: 'b64Small'},
+            {type: 'big', id: 'b64Big'}
+        ].forEach(({type, id}) => {
+            const input = document.getElementById(id);
+            if (!input || input.dataset.previewBound === 'true') return;
+
+            input.dataset.previewBound = 'true';
+            input.addEventListener('input', () => updateBase64Preview(type, input.value));
+            updateBase64Preview(type, input.value);
+        });
+    }
+
+    function onFileSelected(type, input) {
+        const file = input.files[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            if (type === 'small') {
+                customSmallB64 = '';
+            } else {
+                customBigB64 = '';
+            }
+            setUploadState(type, 'invalid', '请选择有效图片文件');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            validateUploadImage(type, e.target.result);
+        };
+        reader.onerror = function () {
+            if (type === 'small') {
+                customSmallB64 = '';
+            } else {
+                customBigB64 = '';
+            }
+            setUploadState(type, 'invalid', '文件读取失败，请重新选择');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 拖拽上传
+    function setupDragDrop() {
+        ['dropSmall', 'dropBig'].forEach(id => {
+            const zone = document.getElementById(id);
+            if (zone._dragSetup) return;
+            zone._dragSetup = true;
+            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (!file) return;
+                const type = id === 'dropSmall' ? 'small' : 'big';
+                if (!file.type.startsWith('image/')) {
+                    if (type === 'small') {
+                        customSmallB64 = '';
+                    } else {
+                        customBigB64 = '';
+                    }
+                    setUploadState(type, 'invalid', '请选择有效图片文件');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    validateUploadImage(type, ev.target.result);
+                };
+                reader.onerror = () => {
+                    if (type === 'small') {
+                        customSmallB64 = '';
+                    } else {
+                        customBigB64 = '';
+                    }
+                    setUploadState(type, 'invalid', '文件读取失败，请重新选择');
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    // ========== Base64 示例数据加载 ==========
+    async function loadSampleB64() {
+        try {
+            const dataRes = await fetch('/api/custom-sample');
+            const data = await dataRes.json();
+            if (data.success) {
+                document.getElementById('b64Small').value = data.smallImage;
+                document.getElementById('b64Big').value = data.bigImage;
+                updateBase64Preview('small', data.smallImage);
+                updateBase64Preview('big', data.bigImage);
+            }
+        } catch (e) {
+            console.error('加载示例失败', e);
+        }
+    }
+
+    // ========== 自定义识别 ==========
+    async function runCustom() {
+        const validation = getCustomValidationState();
+        if (!validation.valid) {
+            alert(validation.message);
+            refreshCustomRunButton();
+            return;
+        }
+
+        const mode = document.getElementById('modeUpload').classList.contains('active') ? 'upload' : 'base64';
+        let smallB64, bigB64;
+
+        if (mode === 'upload') {
+            smallB64 = customSmallB64;
+            bigB64 = customBigB64;
+        } else {
+            const smallEl = document.getElementById('b64Small');
+            const bigEl = document.getElementById('b64Big');
+            smallB64 = normalizeImageBase64(smallEl.value);
+            bigB64 = normalizeImageBase64(bigEl.value);
+        }
+
+        if (!smallB64 || !bigB64) {
+            alert('请提供滑块小图和背景大图');
+            return;
+        }
+
+        const runBtn = document.getElementById('runCustomBtn');
+        const resultDiv = document.getElementById('customResult');
+
+        runBtn.disabled = true;
+        runBtn.innerHTML = '识别中 <div class=”spinner-inline”></div>';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+        <div class=”card” style=”border-top: 4px solid #e2e8f0;”>
+            <div style=”text-align:center; color:var(--text-muted); font-size:0.9rem; padding:20px;”>
+                OpenCV 正在提取特征并计算偏移量...
+            </div>
+        </div>`;
+
+        try {
+            const res = await fetch('/api/recognize', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({smallImage: smallB64, bigImage: bigB64})
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP ${res.status}: ${text.substring(0, 200)}`);
+            }
+
+            const data = await res.json();
+
+            if (data.success) {
+                renderResult(data, 'customResult');
+                setTimeout(() => resultDiv.scrollIntoView({behavior: 'smooth', block: 'start'}), 100);
+            } else {
+                resultDiv.innerHTML = `<div class=”card” style=”color:red; border-left:4px solid red;”>识别失败: ${data.error || '请检查图片格式'}</div>`;
+            }
+        } catch (e) {
+            resultDiv.innerHTML = `<div class=”card” style=”color:red; border-left:4px solid red;”>网络错误: ${e.message}</div>`;
+        } finally {
+            runBtn.innerHTML = '开始识别';
+            refreshCustomRunButton();
+        }
+    }
+
+    // 启动
+    setupBase64Preview();
+    init();
+</script>
+
+</body>
+</html>

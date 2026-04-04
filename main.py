@@ -17,6 +17,8 @@ def run_full_debug():
             x, y, w, h = int(res["best_x"]), res["band_y"], res["w_box"], res["h_box"]
             cv2.rectangle(final_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
+            print("大图中缺口距离：",res["x"])
+
             print(f"[{i + 1}] 展示全流程... 空格/回车下一组，ESC退出")
 
             # --- 展示小图处理过程 ---
