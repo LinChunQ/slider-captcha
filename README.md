@@ -1,5 +1,9 @@
 # Slider Captcha Recognizer (OpenCV Edition)
 
+## Demo
+
+演示地址：http://118.145.160.23:5000/
+
 这是一个基于 **OpenCV** 实现的高精度滑块验证码识别方案。该方案专门针对带有复杂内部纹路、干扰背景的滑块进行了优化，识别率极高且性能卓越。
 
 ## 🚀 核心功能 (Core Features)
